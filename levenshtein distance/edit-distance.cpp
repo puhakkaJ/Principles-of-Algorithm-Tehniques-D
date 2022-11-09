@@ -1,5 +1,5 @@
 
-/*  Auto-built C++ source file 'stable-matching.cpp'.  */
+/*  Auto-built C++ source file 'edit-distance.cpp'.  */
 
 /******************************************************************************
 
@@ -7,54 +7,42 @@
   CS-E3190 Principles of Algorithmic Techniques
   Autumn 2022
 
-  Exercise: Stable matching
+  Exercise: Edit distance
 
   Description:
 
-  This exercise asks you to implement an algorithm that computes a stable
-  matching between $n$ applicants and $n$ positions. Each applicant
-  $i=0,1,\ldots,n-1$ has preferences for each position $j=0,1,\ldots,n-1$,
-  and vice versa. These preferences are given as input in two $n^2$-element
-  arrays `a_pref` and `b_pref` so that applicant $i=0,1,\ldots,n-1$ prefers
-  the $n$ available positions in order
+  This exercise asks you to implement an algorithm that computes the edit
+  distance (Levenshtein distance) between two given strings. More precisely,
+  for two strings $a$ and $b$, the *Levenshtein distance* $D(a,b)$ is the
+  minimum length of a sequence of edit operations that transforms the string
+  $a$ into the string $b$, where each edit operation in the sequence is one of
+  the following:
   
-  ``a_pref[i*n+0] > a_pref[i*n+1] > ... > a_pref[i*n+n-1]``,
+      1. deletion of one character from the string,
+      2. insertion of one character into the string, or
+      3. changing of one character in the string into another character.
   
-  where `a_pref[i*n+0]` is the most preferred position, `a_pref[i*n+1]` is
-  the next most preferred position, and so forth until the least preferred
-  position `a_pref[i*n+n-1]`. Dually, position $j=0,1,\ldots,n-1$ prefers
-  the applicants in order
-  
-  ``b_pref[j*n+0] > b_pref[j*n+1] > ... > b_pref[j*n+n-1]``,
-  
-  where `b_pref[j*n+0]` is the most preferred applicant, `b_pref[i*n+1]` is
-  the next most preferred applicant, and so forth until the least preferred
-  applicant `b_pref[i*n+n-1]`.
-  
-  The stable matching is output via the array `s` such that each applicant
-  $i=0,1,\ldots,n-1$ is matched to the position `s[i]`. Accordingly, 
-  the entries `s[0],s[1],...,s[n-1]` must form a permutation of the
-  integers $0,1,\ldots,n-1$. Furthermore, for all $i,j=0,1,\ldots,n-1$ such
-  that $j\neq s[i]$ it must be that applicant $i$ prefers position $s[i]$
-  over position $j$ or position $j$ prefers applicant $s^{-1}[j]$ over
-  applicant $i$; indeed, otherwise the pair $(i,j)$ is unstable. Here we
-  write $s^{-1}$ for the inverse permutation of $s$.
-      
+  For example, the Levenshtein distance satisfies $D(a,a)=0$ for all strings
+  $a$, since a sequence of zero edit operations suffices to transform $a$
+  into $a$. Similarly, one can show that $D(a,b)=D(b,a)$ and
+  $D(a,c)\leq D(a,b)+D(b,c)$ for all strings $a,b,c$. That is, $D$ is a metric
+  in the space of all strings.
+   
   **Your task** in this exercise is to complete the subroutine
                      
-  ``void solver(int n, const int *a_pref, const int *b_pref, int *s)``
+  ``void solver(int n, int m, const char *a, const char *b, int &d)`` ,
   
-  which should compute the array `s` from the given inputs `n`, `a_pref`, and
-  `b_pref`. To locate the subroutine quickly, you can search for "`???`" in
-  the source file. You may assume that $0\leq n\leq 2048$. The source file
-  contains many subroutines that you may find useful in preparing your solution.
-  For example, the subroutine `perm_inv` computes the inverse of a permutation. 
+  which takes as input a string `a` of length `n` and a string `b` of
+  length `m`. The subroutine should compute the Levenshtein distance $D(a,b)$
+  and store it into `d`. To locate the subroutine quickly, you can search for
+  "`???`" in the source file. You may assume that $n,m\geq 0$ and
+  $nm\leq 4294967296$. Furthermore, you may assume that $a[n]=b[m]=0$.
   
   *Grading*. This exercise awards you up to 10 points in 
   the course grading. The number of points awarded is the maximum points times
   the number of tests passed over the total number of tests, rounded up. To
   successfully complete a test, your implementation must use no more than
-  3 seconds of wall clock time and 100 MiB of memory. Each test
+  15 seconds of wall clock time and 10 MiB of memory. Each test
   will in general require the successful solution of one or more problem
   instances. In each batch of scaling tests, the first failed test will
   cause all subsequent tests in the batch to be skipped.
@@ -77,6 +65,7 @@
 #include <getopt.h>
 #include <omp.h>
 #include <immintrin.h>
+#include <cstring>
 
 /*************************************************** Simple error reporting. */
 
@@ -290,10 +279,10 @@ void operator delete(void *p,
 
 class TestContext;
 
-void solver(int n, const int *a_pref, const int *b_pref, int *s);
+void solver(int n, int m, const char *a, const char *b, int &d);
 
 void pipe_out(TestContext &ctx,
-              int n, const int *a_pref, const int *b_pref, int *s);
+              int n, int m, const char *a, const char *b, int &d);
 
 /* Testing context class. */
 
@@ -411,7 +400,7 @@ public:
                 /* Wait for ready signal from the child. */
                 unsigned int ready_signal;
                 recv(&ready_signal, sizeof(unsigned int), "ready");
-                if(good && ready_signal != 0xd8b9c04bu) {
+                if(good && ready_signal != 0x2f141dceu) {
                     reason << "bad ready signal from child";
                     good = false;
                 }
@@ -576,17 +565,17 @@ public:
         }
     }
 
-    bool solve(int n, const int *a_pref, const int *b_pref, int *s) {
+    bool solve(int n, int m, const char *a, const char *b, int &d) {
         started || DIE("not started");
         !ended  || DIE("already ended");
         good    || DIE("solve called on bad context");
         tick_t solve_start = track::now();
         if(!boxed) {
             /* Solve locally without boxing. */
-            solver(n, a_pref, b_pref, s);        
+            solver(n, m, a, b, d);        
         } else {
             /* Pipe to solver process. */            
-            pipe_out(*this, n, a_pref, b_pref, s);
+            pipe_out(*this, n, m, a, b, d);
         }
         tick_t solve_end = track::now();
         time_solve += solve_end - solve_start;
@@ -617,152 +606,67 @@ const char *TestContext::boxed_binary = NULL;
 
 /************************ Solver and select helper subroutines + unit tests. */
 
-bool check_perm(int n, const int *p)
+bool check_instance(int n, int m, const char *a, const char *b)
 {
-    if(n < 0)
+    if(n < 0 || m < 0)
         return false;
-    int *q = new int [n];
-    for(int i = 0; i < n; i++)
-        q[i] = p[i];
-    std::sort(q, q + n);
-    bool good = true;
-    for(int i = 0; i < n; i++)
-        if(q[i] != i)
-            good = false;
-    delete[] q;
-    return good;  
-}
-
-bool check_instance(int n, const int *a_pref, const int *b_pref)
-{
-    if(n < 0)
-        return false;
-    for(int i = 0; i < n; i++)
-        if(!(check_perm(n, a_pref + i*n) && check_perm(n, b_pref + i*n)))
-            return false;
     return true;
 }
 
-void perm_inv(int n, const int *p, int *pi)
-{
-    check_perm(n, p) || DIE("bad permutation");    
-    for(int i = 0; i < n; i++)
-        pi[p[i]] = i;
-}
+int edit(int n, int m, const char *a, const char *b, int** values) {
+    if (n == 0) {
+        return m;
+    } else if (m == 0) {
+        return n;
+    } else {
+        char *a_del = new char[n-1];
+        memcpy(a_del, a, n-1);
+        char *b_del = new char[m-1];
+        memcpy(b_del, b, m-1);
 
-void perm_rand(std::mt19937 &g, int n, int *p)
-{
-    n >= 0 || DIE("bad input");
-    for(int i = 0; i < n; i++)
-        p[i] = i;
-    for(int i = 0; i < n-1; i++) {
-        std::uniform_int_distribution<> d(0,n-i-1);       
-        int x = i + d(g);
-        int t = p[x];
-        p[x] = p[i];
-        p[i] = t;
-    }
-}
+        int sub;
+        int del;
+        int ins;
 
-void part_rand(std::mt19937 &g, int n, int k, int *p)
-{
-    (n >= 0 && k > 0 && k <= n) || DIE("bad input");
-    int *q = new int [n];
-    perm_rand(g, n, q);
-    for(int i = 0; i < n; i++)
-        p[q[i]] = i % k;
-    delete[] q;
-}
+        if (values[n-1][m-1] == -1) {
+            del = edit(n-1, m, a_del, b, values) + 1;
+            ins = edit(n, m-1, a, b_del, values) + 1;
+            sub = edit(n-1, m-1, a_del, b_del, values);
 
-void solver(int n, const int *a_pref, const int *b_pref, int *s)
-{
-    //vectors for current matches for applicants and positions
-    std::vector<int> applicant_match(n, n);
-    std::vector<int> position_match(n, n); 
+            if (a[n-1] != b[m-1]) {
+                sub = sub + 1;
+            } 
 
-    //vector for applicants to sent application (first the most preferred option)
-    std::vector<int> application_to(n, 0);
+            int min1 = std::min(del, ins);
 
-    //if there is still an unemployed applicant
-    bool unemnployed_applicant = true;
-    int current_applicant = 0;
-
-    while (unemnployed_applicant) {
-        int position_to_apply = application_to[current_applicant];
-        application_to[current_applicant] = application_to[current_applicant] + 1;
-        int wanted_position = a_pref[position_to_apply + n * current_applicant];
-        int hired = position_match[wanted_position]
-
-        //if the position is not assignet to anyone yet
-        if (hired == n) {
-            position_match[wanted_position] = current_applicant; 
-            applicant_match[current_applicant] = wanted_position; 
-            int applicant = position_match[wanted_position];
-            s[applicant] = applicant_match[applicant];
-
-        } else { // if there already is a assigned person            
-            //search the preference index for current applicant ant the assigned person
-            int h = 0, c = 0;
-            #pragma omp parallel for
-            for (int i = 0; i < n; i++) {
-                if (b_pref[i + n * wanted_position] == hired) {
-                    h = i;
-                } else if (b_pref[i + n * wanted_position] == current_applicant) {
-                    c = i;
-                }
-            }
-            if (c < h) {
-                position_match[wanted_position] = current_applicant; 
-                applicant_match[current_applicant] = wanted_position; 
-                applicant_match[hired] = n; 
-                int applicant = position_match[wanted_position];
-                s[applicant] = applicant_match[applicant];
-            }
+            values[n-1][m-1] = std::min(min1, sub);
         }
- 
-        //assume no free applicants
-        unemnployed_applicant = false; 
-
-        //find the next free applicant
-        for (int i = 0; i < n; i++) {
-            if (applicant_match[i] == n) {
-                current_applicant = i; 
-                unemnployed_applicant = true; 
-                break;
-            }
-        }
-    }
-}
-
-bool check_soln(int n, const int *a_pref, const int *b_pref, int *s)
-{
-    check_instance(n, a_pref, b_pref) || DIE("bad instance");
-
-    if(!check_perm(n, s))
-        return false;
-
-    int *si = new int [n];
-    int *a_rk = new int [n*n];
-    int *b_rk = new int [n*n];
-
-    perm_inv(n, s, si);
-    for(int i = 0; i < n; i++) {
-        perm_inv(n, a_pref + i*n, a_rk + i*n);
-        perm_inv(n, b_pref + i*n, b_rk + i*n);
-    }
-    bool good = true;
-    for(int i = 0; good && i < n; i++)
-        for(int j = 0; good && j < n; j++)
-            if(j != s[i] &&
-               a_rk[i*n + j] < a_rk[i*n + s[i]] &&
-               b_rk[j*n + i] < b_rk[j*n + si[j]])
-                good = false;
     
-    delete[] b_rk;
-    delete[] a_rk;
-    delete[] si;
-               
-    return good;
+        delete[] a_del;
+        delete[] b_del;
+        
+        //std::cout << a;
+        //std::cout << a_del;
+        return values[n-1][m-1];
+        
+    }
+}
+void solver(int n, int m, const char *a, const char *b, int &d)
+{
+    int** values = new int*[n];
+    for (int i = 0; i < n; i++) {
+        values[i] = new int[m];
+        for (int j = 0; j  <m; j++){
+            values[i][j] = -1;
+        }
+    }
+    d = edit(n, m, a, b, values);
+
+    for (int i = 0; i < n; i++) {
+        delete[] values[i]; 
+    }
+    
+    delete[] values;
 }
 
 void pipe_in(TestContext &ctx)
@@ -771,253 +675,172 @@ void pipe_in(TestContext &ctx)
         /* Pipe-in solver loop. */
 
         /* Read preliminaries. */
-        int n;
+        int n, m;
         ctx.recv(&n, sizeof(int), "preliminaries");
         ctx.guard();
         if(n < 0) 
             break; /* Stop. */
-
-        /* Allocate buffers. */
-        int *a_pref = new int [n*n];
-        int *b_pref = new int [n*n];
-        int *s = new int [n];
-        
-        /* Read input. */
-        ctx.recv(a_pref, sizeof(int)*n*n, "a_pref");
-        ctx.recv(b_pref, sizeof(int)*n*n, "b_pref");
+        ctx.recv(&m, sizeof(int), "preliminaries");
         ctx.guard();
 
+        /* Allocate buffers. */
+        char *a = new char [n+1];
+        char *b = new char [m+1];
+        
+        /* Read input. */
+        ctx.recv(a, sizeof(char)*(n+1), "a");
+        ctx.guard();
+        ctx.recv(b, sizeof(char)*(m+1), "b");
+        ctx.guard();
+        
         /* Solve. */
-        solver(n, a_pref, b_pref, s);
+        int d;
+        solver(n, m, a, b, d);
 
         /* Write output. */
-        ctx.send(s, sizeof(int)*n, "output");
+        ctx.send(&d, sizeof(int), "d");
         ctx.guard();
         
         /* Release buffers. */
-        delete[] s;
-        delete[] b_pref;
-        delete[] a_pref;
+        delete[] b;
+        delete[] a;
     }
 }
 
 void pipe_out(TestContext &ctx,
-              int n, const int *a_pref, const int *b_pref, int *s)
+              int n, int m, const char *a, const char *b, int &d)
 {
-    /* Interact with solver process via pipes. */
-    
     /* Write preliminaries. */    
     ctx.send(&n, sizeof(int), "preliminaries");
+    ctx.send(&m, sizeof(int), "preliminaries");
     
     /* Write input. */   
-    ctx.send(a_pref, sizeof(int)*n*n, "a_pref");
-    ctx.send(b_pref, sizeof(int)*n*n, "b_pref");
+    ctx.send(a, sizeof(char)*(n+1), "a");    
+    ctx.send(b, sizeof(char)*(m+1), "b");
     
     /* Read solver output. */    
-    ctx.recv(s, sizeof(int)*n, "output");
-}
-
-void inst_rand(std::mt19937 &g, int n, int ka, int kb, int *a_pref, int *b_pref)
-{
-    int *pa = new int [ka*n];
-    int *pb = new int [kb*n];
-    int *qa = new int [n];
-    int *qb = new int [n];
-    part_rand(g, n, ka, qa);
-    part_rand(g, n, kb, qb);   
-    for(int i = 0; i < ka; i++)     
-        perm_rand(g, n, pa + i*n);
-    for(int i = 0; i < kb; i++)     
-        perm_rand(g, n, pb + i*n);
-    for(int i = 0; i < n; i++)     
-        for(int j = 0; j < n; j++)
-            a_pref[i*n + j] = pa[qa[i]*n + j];
-    for(int i = 0; i < n; i++)     
-        for(int j = 0; j < n; j++)
-            b_pref[i*n + j] = pb[qb[i]*n + j];  
-    delete[] qb;
-    delete[] qa;
-    delete[] pb;
-    delete[] pa;
-}
-
-void inst_long1(int n, int *a_pref, int *b_pref)
-{
-    for(int i = 0; i < n; i++) {
-        for(int j = 0; j < n; j++) {
-            a_pref[i*n + j] = (i == n-1) ? j : (j == n-1) ? n-1 : (i+j)%(n-1);
-            b_pref[i*n + j] = (i + j + 1) % n;
-        }
-    }
-}
-
-void inst_long2(int n, int *a_pref, int *b_pref)
-{
-    for(int i = 0; i < n; i++) {
-        for(int j = 0; j < n; j++) {
-            a_pref[i*n + j] = (i == n-1) ? j : (j == n-1) ? n-1 : (i+j)%(n-1);
-            b_pref[i*n + j] = (n + i - j + 1) % n;
-        }
-    }
+    ctx.recv(&d, sizeof(int),  "d");
 }
 
 void diagnostics(std::ostream &out,
-                 int n, const int *a_pref, const int *b_pref, const int *s)
+                 int n, int m, const char *a, const char *b, int d, int dt)
 {
-    n >= 0 || DIE("bad input");
+    check_instance(n, m, a, b) || DIE("bad input");
     out << std::endl;
-    if(n > 10) {
-        out << "  [instance with n = " << n << ", suppressing diagnostics]"
+    if(n <= 10 && m <= 10) {
+        out << "  a = \"" << a << "\"" << std::endl;
+        out << "  b = \"" << b << "\"" << std::endl;
+        out << "  d = " << d << ", dt = " << dt << std::endl;
+    } else {
+        out << "  [instance with n = " << n << " and m = " << m << ", suppressing diagnostics]"
             << std::endl;
-    } else {        
-        out << "  n = " << n << std::endl << std::endl;
-        for(int i = 0; i < n; i++) {
-            out << "  a" << i << ": ";
-            for(int j = 0; j < n; j++) {
-                if(j > 0)
-                    out << " > ";
-                out << "b" << a_pref[i*n + j];
-            }
-            out << std::endl;
-        }
-        out << std::endl;
-        for(int i = 0; i < n; i++) {
-            out << "  b" << i << ": ";
-            for(int j = 0; j < n; j++) {
-                if(j > 0)
-                    out << " > ";
-                out << "a" << b_pref[i*n + j];
-            }
-            out << std::endl;
-        }
-        out << std::endl;
-        for(int i = 0; i < n; i++)
-            out << "  s[" << i << "] = " << s[i] << std::endl;
     }
     out << std::endl;
 }
 
-void trial_rand(TestContext &ctx, std::mt19937 &g, int n, int ka, int kb)
+void trial_rand(TestContext &ctx, int seed, int n, int m, int dt)
 {
-    int *a_pref = new int [n*n];
-    int *b_pref = new int [n*n];
-    int *s = new int [n];
-    inst_rand(g, n, ka, kb, a_pref, b_pref);
-    check_instance(n, a_pref, b_pref) || DIE("bad instance");
-    if(ctx.solve(n, a_pref, b_pref, s)) {
-        if(!check_soln(n, a_pref, b_pref, s)) {
+    (n >= 0 && m >= 0 && dt >= 0) || DIE("bad parameters");
+
+    std::mt19937 g(seed);
+    
+    char *a = new char [n+1];
+    char *b = new char [m+1];
+    a[n] = 0;
+    b[m] = 0;
+    check_instance(n, m, a, b) || DIE("bad instance");
+
+    const char *alphabet = "agct";
+    int alphabet_len = 4;
+    std::uniform_int_distribution<> da(0,alphabet_len-1);   
+    for(int i = 0; i < n; i++)
+        a[i] = alphabet[da(g)];
+    for(int i = 0; i < m; i++)
+        b[i] = alphabet[da(g)];
+    
+    int d;
+    if(ctx.solve(n, m, a, b, d)) {
+        if(d != dt) {
             ctx.fail() << "bad solution to instance " << ctx.count();
-            diagnostics(ctx.diagnostics(), n, a_pref, b_pref, s);
+            diagnostics(ctx.diagnostics(), n, m, a, b, d, dt);
         }
     }
-    delete[] s;
-    delete[] b_pref;
-    delete[] a_pref;
+    delete[] b;
+    delete[] a;
 }
 
-void trial_long(TestContext &ctx, std::mt19937 &g, int n, int choice)
-{
-    int *a_pref = new int [n*n];
-    int *b_pref = new int [n*n];
-    int *s = new int [n];
-    switch(choice) {
-    case 0:
-        inst_long1(n, a_pref, b_pref);
-        break;
-    case 1:
-        inst_long1(n, b_pref, a_pref);
-        break;
-    case 2:
-        inst_long2(n, a_pref, b_pref);
-        break;
-    case 3:
-        inst_long2(n, b_pref, a_pref);
-        break;
-    default:
-        DIE("unsupported choice");
-    }
-    check_instance(n, a_pref, b_pref) || DIE("bad instance");
-    if(ctx.solve(n, a_pref, b_pref, s)) {
-        if(!check_soln(n, a_pref, b_pref, s)) {
-            ctx.fail() << "bad solution to instance " << ctx.count();
-            diagnostics(ctx.diagnostics(), n, a_pref, b_pref, s);
-        }
-    }
-    delete[] s;
-    delete[] b_pref;
-    delete[] a_pref;
-}
+const int baseline_tests[][4] = { { 992670690, 0, 0, 0 }, { 823185381, 0, 0, 0 }, { 358822685, 0, 0, 0 }, { 561383553, 0, 0, 0 }, { 789925284, 0, 0, 0 }, { 170765737, 0, 0, 0 }, { 878579710, 0, 0, 0 }, { 549516158, 0, 0, 0 }, { 438360421, 0, 0, 0 }, { 285257250, 0, 0, 0 }, { 557845021, 0, 1, 1 }, { 107320065, 0, 1, 1 }, { 142558326, 0, 1, 1 }, { 983958385, 0, 1, 1 }, { 805374267, 0, 1, 1 }, { 967425166, 0, 1, 1 }, { 216529513, 0, 1, 1 }, { 605979227, 0, 1, 1 }, { 807061239, 0, 1, 1 }, { 665605494, 0, 1, 1 }, { 211410640, 0, 2, 2 }, { 832587122, 0, 2, 2 }, { 128781001, 0, 2, 2 }, { 115061003, 0, 2, 2 }, { 36027469, 0, 2, 2 }, { 251993226, 0, 2, 2 }, { 457175121, 0, 2, 2 }, { 712592594, 0, 2, 2 }, { 282922662, 0, 2, 2 }, { 467278599, 0, 2, 2 }, { 819264555, 0, 3, 3 }, { 693349607, 0, 3, 3 }, { 478118423, 0, 3, 3 }, { 899507741, 0, 3, 3 }, { 745967032, 0, 3, 3 }, { 389708215, 0, 3, 3 }, { 143129887, 0, 3, 3 }, { 607425725, 0, 3, 3 }, { 108204897, 0, 3, 3 }, { 216844123, 0, 3, 3 }, { 759410519, 0, 4, 4 }, { 462752292, 0, 4, 4 }, { 81439808, 0, 4, 4 }, { 997822959, 0, 4, 4 }, { 8322435, 0, 4, 4 }, { 563495164, 0, 4, 4 }, { 398375548, 0, 4, 4 }, { 967598725, 0, 4, 4 }, { 888259215, 0, 4, 4 }, { 555401847, 0, 4, 4 }, { 133990731, 0, 5, 5 }, { 576360846, 0, 5, 5 }, { 269260147, 0, 5, 5 }, { 367318865, 0, 5, 5 }, { 907150443, 0, 5, 5 }, { 166259589, 0, 5, 5 }, { 396556834, 0, 5, 5 }, { 563106101, 0, 5, 5 }, { 734071155, 0, 5, 5 }, { 562109000, 0, 5, 5 }, { 115316741, 1, 0, 1 }, { 414372578, 1, 0, 1 }, { 437564012, 1, 0, 1 }, { 999953669, 1, 0, 1 }, { 881458747, 1, 0, 1 }, { 529943123, 1, 0, 1 }, { 105983500, 1, 0, 1 }, { 863176590, 1, 0, 1 }, { 112038651, 1, 0, 1 }, { 572980304, 1, 0, 1 }, { 260248731, 1, 1, 0 }, { 908238630, 1, 1, 1 }, { 561372504, 1, 1, 1 }, { 187221984, 1, 1, 1 }, { 223155947, 1, 1, 1 }, { 818012165, 1, 1, 1 }, { 844380234, 1, 1, 1 }, { 487468620, 1, 1, 0 }, { 127879446, 1, 1, 1 }, { 441282060, 1, 1, 1 }, { 514786552, 1, 2, 2 }, { 20176958, 1, 2, 2 }, { 148440361, 1, 2, 2 }, { 629275282, 1, 2, 1 }, { 479737010, 1, 2, 2 }, { 3195986, 1, 2, 1 }, { 412181689, 1, 2, 1 }, { 82823982, 1, 2, 2 }, { 940383290, 1, 2, 1 }, { 783365911, 1, 2, 2 }, { 111189909, 1, 3, 3 }, { 743031559, 1, 3, 2 }, { 10498897, 1, 3, 2 }, { 261125695, 1, 3, 3 }, { 972992891, 1, 3, 2 }, { 394542592, 1, 3, 2 }, { 47321306, 1, 3, 2 }, { 978368172, 1, 3, 2 }, { 764731833, 1, 3, 2 }, { 922418062, 1, 3, 2 }, { 282559898, 1, 4, 3 }, { 105711275, 1, 4, 3 }, { 720447390, 1, 4, 3 }, { 596512483, 1, 4, 4 }, { 302030624, 1, 4, 3 }, { 645853955, 1, 4, 3 }, { 986462144, 1, 4, 3 }, { 283211782, 1, 4, 4 }, { 617755330, 1, 4, 3 }, { 27045809, 1, 4, 3 }, { 645033211, 1, 5, 4 }, { 879294844, 1, 5, 4 }, { 102930668, 1, 5, 4 }, { 169416485, 1, 5, 4 }, { 620684232, 1, 5, 4 }, { 613878827, 1, 5, 5 }, { 644715326, 1, 5, 4 }, { 118490326, 1, 5, 4 }, { 913132821, 1, 5, 4 }, { 60299841, 1, 5, 4 }, { 648617696, 2, 0, 2 }, { 71322885, 2, 0, 2 }, { 355044603, 2, 0, 2 }, { 490934504, 2, 0, 2 }, { 441234290, 2, 0, 2 }, { 421743225, 2, 0, 2 }, { 806672318, 2, 0, 2 }, { 30394580, 2, 0, 2 }, { 540485319, 2, 0, 2 }, { 431739001, 2, 0, 2 }, { 953201477, 2, 1, 2 }, { 158530349, 2, 1, 1 }, { 434284690, 2, 1, 2 }, { 193765492, 2, 1, 2 }, { 463320776, 2, 1, 1 }, { 31756235, 2, 1, 1 }, { 179990930, 2, 1, 1 }, { 87798149, 2, 1, 1 }, { 723242812, 2, 1, 1 }, { 985074806, 2, 1, 1 }, { 815742245, 2, 2, 2 }, { 761069449, 2, 2, 2 }, { 127790188, 2, 2, 2 }, { 452106877, 2, 2, 2 }, { 510181478, 2, 2, 0 }, { 303295297, 2, 2, 0 }, { 67596078, 2, 2, 2 }, { 437303193, 2, 2, 2 }, { 164359083, 2, 2, 1 }, { 355136501, 2, 2, 2 }, { 969106112, 2, 3, 1 }, { 859278157, 2, 3, 3 }, { 52157192, 2, 3, 2 }, { 381577096, 2, 3, 2 }, { 405053074, 2, 3, 2 }, { 81491055, 2, 3, 2 }, { 126749327, 2, 3, 1 }, { 906923354, 2, 3, 1 }, { 930297376, 2, 3, 2 }, { 225056748, 2, 3, 1 }, { 60341106, 2, 4, 2 }, { 825651808, 2, 4, 3 }, { 290214998, 2, 4, 3 }, { 549183045, 2, 4, 3 }, { 84447443, 2, 4, 4 }, { 624884815, 2, 4, 2 }, { 96078946, 2, 4, 4 }, { 790147868, 2, 4, 3 }, { 578137479, 2, 4, 4 }, { 238958340, 2, 4, 2 }, { 141678759, 2, 5, 4 }, { 336121074, 2, 5, 4 }, { 973132419, 2, 5, 5 }, { 394720342, 2, 5, 4 }, { 518552864, 2, 5, 4 }, { 457899765, 2, 5, 3 }, { 795387149, 2, 5, 4 }, { 280493396, 2, 5, 3 }, { 344036545, 2, 5, 5 }, { 963444377, 2, 5, 3 }, { 301693612, 3, 0, 3 }, { 653405445, 3, 0, 3 }, { 357964785, 3, 0, 3 }, { 923115646, 3, 0, 3 }, { 661070850, 3, 0, 3 }, { 540989267, 3, 0, 3 }, { 79814104, 3, 0, 3 }, { 105344688, 3, 0, 3 }, { 460948393, 3, 0, 3 }, { 881056675, 3, 0, 3 }, { 911535621, 3, 1, 3 }, { 471018803, 3, 1, 2 }, { 443345944, 3, 1, 2 }, { 351050861, 3, 1, 2 }, { 549276905, 3, 1, 2 }, { 506381902, 3, 1, 2 }, { 857312851, 3, 1, 2 }, { 269083709, 3, 1, 2 }, { 183460861, 3, 1, 3 }, { 424562602, 3, 1, 2 }, { 840933102, 3, 2, 2 }, { 591640, 3, 2, 1 }, { 264873566, 3, 2, 2 }, { 400498956, 3, 2, 2 }, { 692943993, 3, 2, 3 }, { 832386187, 3, 2, 2 }, { 370325431, 3, 2, 3 }, { 162565860, 3, 2, 3 }, { 613944172, 3, 2, 2 }, { 384905689, 3, 2, 2 }, { 215458024, 3, 3, 3 }, { 947011609, 3, 3, 2 }, { 960698464, 3, 3, 3 }, { 357495009, 3, 3, 2 }, { 679179868, 3, 3, 3 }, { 302265918, 3, 3, 2 }, { 780397254, 3, 3, 1 }, { 416262262, 3, 3, 2 }, { 498033211, 3, 3, 2 }, { 825085170, 3, 3, 3 }, { 54219744, 3, 4, 4 }, { 598603981, 3, 4, 3 }, { 84122149, 3, 4, 4 }, { 264936599, 3, 4, 3 }, { 866156392, 3, 4, 3 }, { 380419980, 3, 4, 3 }, { 899636946, 3, 4, 4 }, { 450756277, 3, 4, 4 }, { 88136285, 3, 4, 2 }, { 984748534, 3, 4, 3 }, { 121712641, 3, 5, 3 }, { 75188761, 3, 5, 4 }, { 801286848, 3, 5, 4 }, { 480792763, 3, 5, 4 }, { 204204058, 3, 5, 4 }, { 798679864, 3, 5, 4 }, { 930698362, 3, 5, 4 }, { 851303308, 3, 5, 4 }, { 102559962, 3, 5, 3 }, { 271258391, 3, 5, 5 }, { 979244988, 4, 0, 4 }, { 438136182, 4, 0, 4 }, { 215686751, 4, 0, 4 }, { 44286797, 4, 0, 4 }, { 309924345, 4, 0, 4 }, { 629852533, 4, 0, 4 }, { 437429573, 4, 0, 4 }, { 741286320, 4, 0, 4 }, { 642449344, 4, 0, 4 }, { 232172618, 4, 0, 4 }, { 43910559, 4, 1, 3 }, { 935029058, 4, 1, 3 }, { 783972010, 4, 1, 3 }, { 286127166, 4, 1, 4 }, { 135761043, 4, 1, 4 }, { 490647935, 4, 1, 4 }, { 418300465, 4, 1, 3 }, { 624026361, 4, 1, 3 }, { 86685050, 4, 1, 3 }, { 673158835, 4, 1, 3 }, { 995711804, 4, 2, 4 }, { 174722575, 4, 2, 2 }, { 127815285, 4, 2, 3 }, { 922949730, 4, 2, 3 }, { 981898987, 4, 2, 3 }, { 285367569, 4, 2, 3 }, { 79264396, 4, 2, 3 }, { 224025742, 4, 2, 2 }, { 134516205, 4, 2, 3 }, { 440608000, 4, 2, 3 }, { 779624091, 4, 3, 2 }, { 522567719, 4, 3, 2 }, { 64849027, 4, 3, 3 }, { 764656126, 4, 3, 3 }, { 904018577, 4, 3, 2 }, { 915402732, 4, 3, 4 }, { 390355801, 4, 3, 3 }, { 327813294, 4, 3, 2 }, { 709525036, 4, 3, 2 }, { 655279818, 4, 3, 3 }, { 343405474, 4, 4, 2 }, { 341484136, 4, 4, 4 }, { 623990096, 4, 4, 2 }, { 776871244, 4, 4, 3 }, { 565473870, 4, 4, 4 }, { 693524886, 4, 4, 3 }, { 670180617, 4, 4, 1 }, { 964042652, 4, 4, 1 }, { 761514080, 4, 4, 2 }, { 15372752, 4, 4, 4 }, { 727557757, 4, 5, 2 }, { 447148988, 4, 5, 3 }, { 245947128, 4, 5, 4 }, { 303665279, 4, 5, 4 }, { 513327347, 4, 5, 3 }, { 51211437, 4, 5, 1 }, { 949893127, 4, 5, 3 }, { 299440537, 4, 5, 2 }, { 765996621, 4, 5, 4 }, { 21431675, 4, 5, 3 }, { 790886053, 5, 0, 5 }, { 806098091, 5, 0, 5 }, { 975158269, 5, 0, 5 }, { 921913314, 5, 0, 5 }, { 199469928, 5, 0, 5 }, { 967701765, 5, 0, 5 }, { 276768688, 5, 0, 5 }, { 810257892, 5, 0, 5 }, { 853081926, 5, 0, 5 }, { 712372936, 5, 0, 5 }, { 1546918, 5, 1, 4 }, { 905528427, 5, 1, 4 }, { 669678305, 5, 1, 4 }, { 607335649, 5, 1, 5 }, { 100554462, 5, 1, 4 }, { 931829821, 5, 1, 4 }, { 224426417, 5, 1, 4 }, { 927413056, 5, 1, 4 }, { 488811917, 5, 1, 5 }, { 757744872, 5, 1, 5 }, { 63715761, 5, 2, 3 }, { 954033906, 5, 2, 4 }, { 93239338, 5, 2, 4 }, { 587586224, 5, 2, 4 }, { 604687648, 5, 2, 4 }, { 336059541, 5, 2, 4 }, { 778510733, 5, 2, 3 }, { 166874833, 5, 2, 4 }, { 593761813, 5, 2, 3 }, { 688097933, 5, 2, 4 }, { 885138786, 5, 3, 3 }, { 176904786, 5, 3, 3 }, { 602900751, 5, 3, 3 }, { 760762381, 5, 3, 3 }, { 348039576, 5, 3, 4 }, { 564155471, 5, 3, 5 }, { 720997873, 5, 3, 4 }, { 171584228, 5, 3, 2 }, { 412477070, 5, 3, 3 }, { 145508789, 5, 3, 3 }, { 835939704, 5, 4, 4 }, { 277631532, 5, 4, 3 }, { 127384629, 5, 4, 4 }, { 996479102, 5, 4, 3 }, { 248568786, 5, 4, 3 }, { 756759023, 5, 4, 3 }, { 664926103, 5, 4, 2 }, { 498917949, 5, 4, 2 }, { 141670444, 5, 4, 3 }, { 154475618, 5, 4, 2 }, { 527142745, 5, 5, 4 }, { 301321155, 5, 5, 4 }, { 793699473, 5, 5, 2 }, { 615703048, 5, 5, 4 }, { 727855917, 5, 5, 2 }, { 720511021, 5, 5, 4 }, { 104985614, 5, 5, 3 }, { 686911368, 5, 5, 4 }, { 460640, 5, 5, 4 }, { 119831120, 5, 5, 3 } };
 
+const int scaling_tests[][4] = { { 992670690, 16, 16, 11 }, { 823185381, 32, 32, 20 }, { 358822685, 64, 64, 36 }, { 561383553, 128, 128, 73 }, { 789925284, 256, 256, 141 }, { 170765737, 512, 512, 280 }, { 878579710, 1024, 1024, 538 }, { 549516158, 2048, 2048, 1065 }, { 438360421, 4096, 4096, 2124 }, { 285257250, 8192, 8192, 4254 }, { 557845021, 16384, 16384, 8489 }, { 107320065, 32768, 32768, 17005 }, { 142558326, 65536, 65536, 33880 }, { 983958385, 131072, 131072, 67734 },
+{ 805374267, 262144, 262144, 135518 } };
+    
 bool tests(bool do_boxed)
 {
-    std::mt19937 g(12345);
-
     track::start();
     bool good = true;
-    for(int n = 1; n <= 5; n++) {
-        for(int ka = 1; ka <= n; ka++) {                
-            for(int kb = 1; kb <= n; kb++) {
-                std::cerr << "test n = " << std::setw(2) << n
-                          << ", ka = " << std::setw(2) << ka
-                          << ", kb = " << std::setw(2) << kb
-                          << " ... ";
-                TestContext ctx;
-                ctx.start(do_boxed,
-                          (tick_t) 3000*TICKS_IN_MSEC);
-                int repeats = 100;
-                for(int r = 0; !ctx.bad() && r < repeats; r++)
-                    trial_rand(ctx, g, n, ka, kb);
-                ctx.end();
-                if(ctx.bad()) {
-                    std::cerr << "FAIL [" << ctx.fail().str() << "]";
-                    good = false;
-                } else {
-                    std::cerr << "OK   ["
-                              << std::setw(5)
-                              << ctx.timing_ms() << " ms]";
-                }
-                std::cerr << std::endl;
-                if(ctx.bad())
-                    std::cerr << ctx.diagnostics().str();
-            }
-        }
-    }
-    for(int n = 1; n <= 2048; n*=2) {
-        std::cerr << "scaling test n = " << std::setw(5) << n
-                  << " ... ";
-        const int repeats = 4;
-        long timing[repeats];
-        bool testgood = true;
-        for(int r = 0; r < repeats; r++) {        
+    int tno = 0;
+    for(int n = 0; n <= 5; n++) {
+        for(int m = 0; m <= 5; m++) {
+            std::cerr << "test n = " << std::setw(3) << n
+                      << ", m = " << std::setw(3) << m
+                      << " ... ";
             TestContext ctx;
             ctx.start(do_boxed,
-                      (tick_t) 3000*TICKS_IN_MSEC);
-            if(!ctx.bad())
-                trial_long(ctx, g, n, r);
+                      (tick_t) 15000*TICKS_IN_MSEC);
+            int repeats = 10;
+            for(int r = 0; r < repeats; r++) {
+                if(!ctx.bad()) {
+                    int seed = baseline_tests[tno][0];
+                    (baseline_tests[tno][1] == n &&
+                     baseline_tests[tno][2] == m) || DIE("bad test");
+                    int dt = baseline_tests[tno][3];
+                    trial_rand(ctx, seed, n, m, dt);
+                }
+                tno++;
+            }
             ctx.end();
             if(ctx.bad()) {
                 std::cerr << "FAIL [" << ctx.fail().str() << "]";
                 good = false;
-                std::cerr << std::endl;
-                if(ctx.bad())
-                    std::cerr << ctx.diagnostics().str();        
-                testgood = false;
-                break;
             } else {
-                timing[r] = ctx.timing_ms();
-            }
-        }
-        if(testgood) {
-            std::cerr << "OK   [";          
-            for(int r = 0; r < repeats; r++) {
-                std::cerr << std::setw(5) << timing[r] << " ms";
-                if(r == repeats-1)
-                    std::cerr << "]";
-                else
-                    std::cerr << ", ";              
+                std::cerr << "OK   ["
+                          << std::setw(5)
+                          << ctx.timing_ms() << " ms]";
             }
             std::cerr << std::endl;
+            if(ctx.bad())
+                std::cerr << ctx.diagnostics().str();
         }
+    }
+    tno = 0;
+    for(int n = 16; n <= 1 << 16; n*=2) {
+        int m = n;
+        std::cerr << "scaling test n = " << std::setw(7) << n
+                  << ", m = " << std::setw(7) << m
+                  << " ... ";
+        TestContext ctx;
+        ctx.start(do_boxed,
+                  (tick_t) 15000*TICKS_IN_MSEC);
+        if(!ctx.bad()) {
+            int seed = scaling_tests[tno][0];
+            (scaling_tests[tno][1] == n &&
+             scaling_tests[tno][2] == m) || DIE("bad test");
+            int dt = scaling_tests[tno][3];
+            trial_rand(ctx, seed, n, m, dt);
+        }
+        tno++;
+        ctx.end();
+        if(ctx.bad()) {
+            std::cerr << "FAIL [" << ctx.fail().str() << "]";
+            good = false;
+            if(ctx.bad())
+                std::cerr << ctx.diagnostics().str();        
+        } else {
+            std::cerr << "OK   [";          
+            std::cerr << std::setw(5) << ctx.timing_ms() << " ms";
+            std::cerr << "]";
+        }
+        std::cerr << std::endl;
     }
     long ms, KiB;
     track::stop(ms, KiB);
@@ -1049,7 +872,7 @@ int main(int argc, char * const *argv)
             break;
         default:
             const char *ex =
-                "Stable matching";
+                "Edit distance";
             std::cout
               << "Template for exercise '"<<ex<<"', CS-E3190 Autumn 2022\n"
               << "\n"
@@ -1079,7 +902,7 @@ int main(int argc, char * const *argv)
     } else {
         /* Start processing in piped-solver mode. */
         TestContext ctx;
-        unsigned int ready_signal = 0xd8b9c04b;
+        unsigned int ready_signal = 0x2f141dce;
         ctx.send(&ready_signal, sizeof(unsigned int), "ready");
         ctx.guard();
         pipe_in(ctx);          

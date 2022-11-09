@@ -1,5 +1,5 @@
 
-/*  Auto-built C++ source file 'stable-matching.cpp'.  */
+/*  Auto-built C++ source file 'vertex-cover.cpp'.  */
 
 /******************************************************************************
 
@@ -7,54 +7,51 @@
   CS-E3190 Principles of Algorithmic Techniques
   Autumn 2022
 
-  Exercise: Stable matching
+  Exercise: Vertex cover
 
   Description:
 
-  This exercise asks you to implement an algorithm that computes a stable
-  matching between $n$ applicants and $n$ positions. Each applicant
-  $i=0,1,\ldots,n-1$ has preferences for each position $j=0,1,\ldots,n-1$,
-  and vice versa. These preferences are given as input in two $n^2$-element
-  arrays `a_pref` and `b_pref` so that applicant $i=0,1,\ldots,n-1$ prefers
-  the $n$ available positions in order
+  This exercise asks you to implement an algorithm that computes a low-cost
+  vertex cover. More precisely, the input consists of an $n$-vertex, $m$-edge
+  undirected graph with a positive integer cost associated to each vertex.
+  A set of vertices is called a *vertex cover* if each edge has at least one
+  end-vertex in the set. The *cost* of a vertex cover is the sum of the costs
+  of its vertices. The *optimum cost* $\mathrm{OPT}$ of a vertex cover is the
+  minimum cost of a vertex cover, where the minimum is taken over all possible
+  vertex covers. The algorithm must output a vertex cover $S$ with cost at
+  most $2\cdot\mathrm{OPT}$. For example, an implementation of the primal-dual
+  vertex cover algorithm suffices for this purpose.
   
-  ``a_pref[i*n+0] > a_pref[i*n+1] > ... > a_pref[i*n+n-1]``,
-  
-  where `a_pref[i*n+0]` is the most preferred position, `a_pref[i*n+1]` is
-  the next most preferred position, and so forth until the least preferred
-  position `a_pref[i*n+n-1]`. Dually, position $j=0,1,\ldots,n-1$ prefers
-  the applicants in order
-  
-  ``b_pref[j*n+0] > b_pref[j*n+1] > ... > b_pref[j*n+n-1]``,
-  
-  where `b_pref[j*n+0]` is the most preferred applicant, `b_pref[i*n+1]` is
-  the next most preferred applicant, and so forth until the least preferred
-  applicant `b_pref[i*n+n-1]`.
-  
-  The stable matching is output via the array `s` such that each applicant
-  $i=0,1,\ldots,n-1$ is matched to the position `s[i]`. Accordingly, 
-  the entries `s[0],s[1],...,s[n-1]` must form a permutation of the
-  integers $0,1,\ldots,n-1$. Furthermore, for all $i,j=0,1,\ldots,n-1$ such
-  that $j\neq s[i]$ it must be that applicant $i$ prefers position $s[i]$
-  over position $j$ or position $j$ prefers applicant $s^{-1}[j]$ over
-  applicant $i$; indeed, otherwise the pair $(i,j)$ is unstable. Here we
-  write $s^{-1}$ for the inverse permutation of $s$.
-      
   **Your task** in this exercise is to complete the subroutine
                      
-  ``void solver(int n, const int *a_pref, const int *b_pref, int *s)``
+  ``void solver(int n, int m, const int *e, const int *c, int &k, int *s)``
   
-  which should compute the array `s` from the given inputs `n`, `a_pref`, and
-  `b_pref`. To locate the subroutine quickly, you can search for "`???`" in
-  the source file. You may assume that $0\leq n\leq 2048$. The source file
-  contains many subroutines that you may find useful in preparing your solution.
-  For example, the subroutine `perm_inv` computes the inverse of a permutation. 
+  which should compute the size `k` and the elements `s` of a vertex cover as
+  described in the previous paragraph from the given input consisting of
+  positive integers `n` and `m`, as well as the arrays `c` and `e`, whose
+  format is as follows.
+  
+  The array `e` concatenates the $m$ edges in the input graph.
+  That is, the $m$ edges of the graph are
+  $\{e[0],e[1]\},\{e[2],e[3]\},\ldots,\{e[2m-2],e[2m-1]\}$, with
+  $\{e[2i],e[2i+1]\}\subseteq\{0,1,\ldots,n-1\}$ and $e[2i]<e[2i+1]$
+  for all $i=0,1,\ldots,m-1$. The array `c` contains the cost $c[i]\geq 1$
+  of each vertex $i=0,1,\ldots,n-1$.
+                             
+  The output of the subroutine should be as follows.
+  To give as output a vertex cover $S=\{j_0,j_1,\ldots,j_{k-1}\}$,
+  set `k` equal to $k$ and the element `s[i]` equal to $j_i$ for all
+  $i=0,1,\ldots,k-1$. 
+  You may assume that $2\leq n\leq 524288$, $1\leq m\leq 52428800$,
+  $1\leq k\leq n$, and that the array $s$ has capacity for at least $n$
+  elements. To locate the subroutine quickly, you can search for "`???`" in
+  the source file.
   
   *Grading*. This exercise awards you up to 10 points in 
   the course grading. The number of points awarded is the maximum points times
   the number of tests passed over the total number of tests, rounded up. To
   successfully complete a test, your implementation must use no more than
-  3 seconds of wall clock time and 100 MiB of memory. Each test
+  7 seconds of wall clock time and 512 MiB of memory. Each test
   will in general require the successful solution of one or more problem
   instances. In each batch of scaling tests, the first failed test will
   cause all subsequent tests in the batch to be skipped.
@@ -77,6 +74,7 @@
 #include <getopt.h>
 #include <omp.h>
 #include <immintrin.h>
+#include <queue>
 
 /*************************************************** Simple error reporting. */
 
@@ -290,10 +288,10 @@ void operator delete(void *p,
 
 class TestContext;
 
-void solver(int n, const int *a_pref, const int *b_pref, int *s);
+void solver(int n, int m, const int *e, const int *c, int &k, int *s);
 
 void pipe_out(TestContext &ctx,
-              int n, const int *a_pref, const int *b_pref, int *s);
+              int n, int m, const int *e, const int *c, int &k, int *s);
 
 /* Testing context class. */
 
@@ -411,7 +409,7 @@ public:
                 /* Wait for ready signal from the child. */
                 unsigned int ready_signal;
                 recv(&ready_signal, sizeof(unsigned int), "ready");
-                if(good && ready_signal != 0xd8b9c04bu) {
+                if(good && ready_signal != 0x0fe95617u) {
                     reason << "bad ready signal from child";
                     good = false;
                 }
@@ -576,17 +574,17 @@ public:
         }
     }
 
-    bool solve(int n, const int *a_pref, const int *b_pref, int *s) {
+    bool solve(int n, int m, const int *e, const int *c, int &k, int *s) {
         started || DIE("not started");
         !ended  || DIE("already ended");
         good    || DIE("solve called on bad context");
         tick_t solve_start = track::now();
         if(!boxed) {
             /* Solve locally without boxing. */
-            solver(n, a_pref, b_pref, s);        
+            solver(n, m, e, c, k, s);        
         } else {
             /* Pipe to solver process. */            
-            pipe_out(*this, n, a_pref, b_pref, s);
+            pipe_out(*this, n, m, e, c, k, s);
         }
         tick_t solve_end = track::now();
         time_solve += solve_end - solve_start;
@@ -617,151 +615,113 @@ const char *TestContext::boxed_binary = NULL;
 
 /************************ Solver and select helper subroutines + unit tests. */
 
-bool check_perm(int n, const int *p)
+bool check_instance(int n, int m, const int *e, const int *c)
 {
-    if(n < 0)
+    if(n <= 1 || m <= 0)
         return false;
-    int *q = new int [n];
+    for(int j = 0; j < m; j++)
+        if(e[2*j] >= e[2*j+1])
+            return false;
     for(int i = 0; i < n; i++)
-        q[i] = p[i];
-    std::sort(q, q + n);
-    bool good = true;
-    for(int i = 0; i < n; i++)
-        if(q[i] != i)
-            good = false;
-    delete[] q;
-    return good;  
-}
-
-bool check_instance(int n, const int *a_pref, const int *b_pref)
-{
-    if(n < 0)
-        return false;
-    for(int i = 0; i < n; i++)
-        if(!(check_perm(n, a_pref + i*n) && check_perm(n, b_pref + i*n)))
+        if(c[i] <= 0)
             return false;
     return true;
 }
 
-void perm_inv(int n, const int *p, int *pi)
+void solver(int n, int m, const int *e, const int *c, int &k, int *s)
 {
-    check_perm(n, p) || DIE("bad permutation");    
-    for(int i = 0; i < n; i++)
-        pi[p[i]] = i;
-}
+    std::vector<int> costs(n);
+    // init costs to zero
+    for (int i = 0; i < n; i++) 
+    	costs[i] = 0; 
 
-void perm_rand(std::mt19937 &g, int n, int *p)
-{
-    n >= 0 || DIE("bad input");
-    for(int i = 0; i < n; i++)
-        p[i] = i;
-    for(int i = 0; i < n-1; i++) {
-        std::uniform_int_distribution<> d(0,n-i-1);       
-        int x = i + d(g);
-        int t = p[x];
-        p[x] = p[i];
-        p[i] = t;
+    std::queue<std::pair<int, int>> edges;
+    // init queue for edges
+    for (int i = 0; i < m; i++) {
+    	edges.push(std::make_pair(e[2 * i], e[2 * i + 1]));
     }
-}
+    
+    // primal-dual algorithm found here https://pages.cs.wisc.edu/~shuchi/courses/787-F07/scribe-notes/lecture15.pdf
+    int primal = 0; 
+    bool l = false;
 
-void part_rand(std::mt19937 &g, int n, int k, int *p)
-{
-    (n >= 0 && k > 0 && k <= n) || DIE("bad input");
-    int *q = new int [n];
-    perm_rand(g, n, q);
-    for(int i = 0; i < n; i++)
-        p[q[i]] = i % k;
-    delete[] q;
-}
+    while (!(edges.empty())) {
+        std::pair<int, int> edge = edges.front();
+        edges.pop();
 
-void solver(int n, const int *a_pref, const int *b_pref, int *s)
-{
-    //vectors for current matches for applicants and positions
-    std::vector<int> applicant_match(n, n);
-    std::vector<int> position_match(n, n); 
+    	int vertex_1 = edge.first; 
+    	int vertex_2 = edge.second; 
 
-    //vector for applicants to sent application (first the most preferred option)
-    std::vector<int> application_to(n, 0);
+        // make sure we deal with vertices that have NOT been added to the cover yet
+        if (costs[vertex_1] < c[vertex_1] && costs[vertex_2] < c[vertex_2]) {
 
-    //if there is still an unemployed applicant
-    bool unemnployed_applicant = true;
-    int current_applicant = 0;
+            // determine the number that we can add to either one to become tight
+            int value = std::min(c[vertex_1] - costs[vertex_1], c[vertex_2] - costs[vertex_2]);
 
-    while (unemnployed_applicant) {
-        int position_to_apply = application_to[current_applicant];
-        application_to[current_applicant] = application_to[current_applicant] + 1;
-        int wanted_position = a_pref[position_to_apply + n * current_applicant];
-        int hired = position_match[wanted_position]
+            //increase the vertex values until the inequality fails
+            costs[vertex_1] += value; 
+            costs[vertex_2] += value;
 
-        //if the position is not assignet to anyone yet
-        if (hired == n) {
-            position_match[wanted_position] = current_applicant; 
-            applicant_match[current_applicant] = wanted_position; 
-            int applicant = position_match[wanted_position];
-            s[applicant] = applicant_match[applicant];
-
-        } else { // if there already is a assigned person            
-            //search the preference index for current applicant ant the assigned person
-            int h = 0, c = 0;
-            #pragma omp parallel for
-            for (int i = 0; i < n; i++) {
-                if (b_pref[i + n * wanted_position] == hired) {
-                    h = i;
-                } else if (b_pref[i + n * wanted_position] == current_applicant) {
-                    c = i;
-                }
+            //add tight vertices to cover
+            if (costs[vertex_1] == c[vertex_1]) {
+                s[primal] = vertex_1; 
+                primal += 1; 
+                l= true;
+            } 
+            //add tight vertices to cover
+            if (costs[vertex_2] == c[vertex_2]) {
+                s[primal] = vertex_2;
+                primal += 1;
+                l = true;
             }
-            if (c < h) {
-                position_match[wanted_position] = current_applicant; 
-                applicant_match[current_applicant] = wanted_position; 
-                applicant_match[hired] = n; 
-                int applicant = position_match[wanted_position];
-                s[applicant] = applicant_match[applicant];
+            //if vertice not added to the cover
+            if (!(l)) {
+                edges.push(std::make_pair(vertex_1,vertex_2));
             }
         }
- 
-        //assume no free applicants
-        unemnployed_applicant = false; 
+    }
 
-        //find the next free applicant
-        for (int i = 0; i < n; i++) {
-            if (applicant_match[i] == n) {
-                current_applicant = i; 
-                unemnployed_applicant = true; 
+    k = primal; 
+}
+
+bool check_soln(int n, int m, const int *e, const int *c,                
+                int k, const int *s, int optatmost)
+{
+    check_instance(n, m, e, c) || DIE("bad instance");
+    if(k <= 0 || k > n)
+        return false;
+    bool good = true;
+    int *b = new int[n];    
+    for(int i = 0; i < n; i++)
+        b[i] = false;
+    int cost = 0;
+    for(int i = 0; i < k; i++) {
+        if(s[i] < 0 || s[i] >= n) {
+            /* Vertex number out of bounds. */
+            good = false;
+            break;                  
+        } else {
+            if(b[s[i]]) {
+                /* Repeat vertex. */
+                good = false; 
                 break;
             }
+            b[s[i]] = true;
+            cost += c[s[i]];
         }
     }
-}
-
-bool check_soln(int n, const int *a_pref, const int *b_pref, int *s)
-{
-    check_instance(n, a_pref, b_pref) || DIE("bad instance");
-
-    if(!check_perm(n, s))
-        return false;
-
-    int *si = new int [n];
-    int *a_rk = new int [n*n];
-    int *b_rk = new int [n*n];
-
-    perm_inv(n, s, si);
-    for(int i = 0; i < n; i++) {
-        perm_inv(n, a_pref + i*n, a_rk + i*n);
-        perm_inv(n, b_pref + i*n, b_rk + i*n);
+    for(int j = 0; j < m; j++) {
+        if((!b[e[2*j]]) && (!b[e[2*j+1]])) {
+            /* Edge not covered. */
+            good = false;
+            break;
+        }
     }
-    bool good = true;
-    for(int i = 0; good && i < n; i++)
-        for(int j = 0; good && j < n; j++)
-            if(j != s[i] &&
-               a_rk[i*n + j] < a_rk[i*n + s[i]] &&
-               b_rk[j*n + i] < b_rk[j*n + si[j]])
-                good = false;
-    
-    delete[] b_rk;
-    delete[] a_rk;
-    delete[] si;
-               
+    if(cost > 2*optatmost) {
+        /* Not within approximation bound. */
+        good = false;
+    }
+    delete[] b;
     return good;
 }
 
@@ -771,181 +731,155 @@ void pipe_in(TestContext &ctx)
         /* Pipe-in solver loop. */
 
         /* Read preliminaries. */
-        int n;
+        int n, m;
         ctx.recv(&n, sizeof(int), "preliminaries");
         ctx.guard();
         if(n < 0) 
             break; /* Stop. */
+        ctx.recv(&m, sizeof(int), "preliminaries");
+        ctx.guard();
 
         /* Allocate buffers. */
-        int *a_pref = new int [n*n];
-        int *b_pref = new int [n*n];
+        int *e = new int [2*m];
+        int *c = new int [n];
         int *s = new int [n];
         
         /* Read input. */
-        ctx.recv(a_pref, sizeof(int)*n*n, "a_pref");
-        ctx.recv(b_pref, sizeof(int)*n*n, "b_pref");
+        ctx.recv(e, sizeof(int)*2*m, "e");
         ctx.guard();
 
+        /* Read further input. */
+        ctx.recv(c, sizeof(int)*n, "c");
+        ctx.guard();
+        
         /* Solve. */
-        solver(n, a_pref, b_pref, s);
+        int k;
+        solver(n, m, e, c, k, s);
 
         /* Write output. */
-        ctx.send(s, sizeof(int)*n, "output");
+        ctx.send(&k, sizeof(int),  "k");
+        ctx.guard();
+        ctx.send(s, sizeof(int)*k, "s");
         ctx.guard();
         
         /* Release buffers. */
         delete[] s;
-        delete[] b_pref;
-        delete[] a_pref;
+        delete[] c;
+        delete[] e;
     }
 }
 
 void pipe_out(TestContext &ctx,
-              int n, const int *a_pref, const int *b_pref, int *s)
+              int n, int m, const int *e, const int *c, int &k, int *s)
 {
-    /* Interact with solver process via pipes. */
-    
     /* Write preliminaries. */    
     ctx.send(&n, sizeof(int), "preliminaries");
+    ctx.send(&m, sizeof(int), "preliminaries");
     
     /* Write input. */   
-    ctx.send(a_pref, sizeof(int)*n*n, "a_pref");
-    ctx.send(b_pref, sizeof(int)*n*n, "b_pref");
+    ctx.send(e, sizeof(int)*2*m, "e");    
+    ctx.send(c, sizeof(int)*n,   "c");
     
     /* Read solver output. */    
-    ctx.recv(s, sizeof(int)*n, "output");
-}
-
-void inst_rand(std::mt19937 &g, int n, int ka, int kb, int *a_pref, int *b_pref)
-{
-    int *pa = new int [ka*n];
-    int *pb = new int [kb*n];
-    int *qa = new int [n];
-    int *qb = new int [n];
-    part_rand(g, n, ka, qa);
-    part_rand(g, n, kb, qb);   
-    for(int i = 0; i < ka; i++)     
-        perm_rand(g, n, pa + i*n);
-    for(int i = 0; i < kb; i++)     
-        perm_rand(g, n, pb + i*n);
-    for(int i = 0; i < n; i++)     
-        for(int j = 0; j < n; j++)
-            a_pref[i*n + j] = pa[qa[i]*n + j];
-    for(int i = 0; i < n; i++)     
-        for(int j = 0; j < n; j++)
-            b_pref[i*n + j] = pb[qb[i]*n + j];  
-    delete[] qb;
-    delete[] qa;
-    delete[] pb;
-    delete[] pa;
-}
-
-void inst_long1(int n, int *a_pref, int *b_pref)
-{
-    for(int i = 0; i < n; i++) {
-        for(int j = 0; j < n; j++) {
-            a_pref[i*n + j] = (i == n-1) ? j : (j == n-1) ? n-1 : (i+j)%(n-1);
-            b_pref[i*n + j] = (i + j + 1) % n;
-        }
-    }
-}
-
-void inst_long2(int n, int *a_pref, int *b_pref)
-{
-    for(int i = 0; i < n; i++) {
-        for(int j = 0; j < n; j++) {
-            a_pref[i*n + j] = (i == n-1) ? j : (j == n-1) ? n-1 : (i+j)%(n-1);
-            b_pref[i*n + j] = (n + i - j + 1) % n;
-        }
-    }
+    ctx.recv(&k, sizeof(int),  "k");
+    if(k < 0 || k > n)
+        return;
+    ctx.recv(s, sizeof(int)*k, "s");
 }
 
 void diagnostics(std::ostream &out,
-                 int n, const int *a_pref, const int *b_pref, const int *s)
+                 int n, int m, const int *e, const int *c,
+                 int k, const int *s,
+                 int optatmost)
 {
-    n >= 0 || DIE("bad input");
+    check_instance(n, m, e, c) || DIE("bad input");
     out << std::endl;
-    if(n > 10) {
-        out << "  [instance with n = " << n << ", suppressing diagnostics]"
+    if(n <= 10 && m <= 20) {
+        out << "  n = " << n << ", m = " << m << std::endl;
+        for(int i = 0; i < m; i++) {
+            out << "  { e[" << 2*i << "], e[" << 2*i+1 
+                << "] } = {" << e[2*i] << ", " << e[2*i+1] << "}"
+                << std::endl;
+        }
+        out << "  k = " << k << std::endl;
+        if(k > 0) {
+            int cost = 0;
+            out << "  S = {";
+            for(int j = 0; j < k && j < n; j++) {
+                out << s[j];
+                cost += c[s[j]];
+                if(j < k-1 && j < n-1)
+                    out << ", ";
+                else
+                    out << "}";
+            }
+            out << std::endl;
+            out << "  cost      = " << cost << std::endl;
+            out << "  optatmost = " << optatmost << std::endl;
+        }
+    } else {
+        out << "  [instance with n = " << n << " and m = " << m << ", suppressing diagnostics]"
             << std::endl;
-    } else {        
-        out << "  n = " << n << std::endl << std::endl;
-        for(int i = 0; i < n; i++) {
-            out << "  a" << i << ": ";
-            for(int j = 0; j < n; j++) {
-                if(j > 0)
-                    out << " > ";
-                out << "b" << a_pref[i*n + j];
-            }
-            out << std::endl;
-        }
-        out << std::endl;
-        for(int i = 0; i < n; i++) {
-            out << "  b" << i << ": ";
-            for(int j = 0; j < n; j++) {
-                if(j > 0)
-                    out << " > ";
-                out << "a" << b_pref[i*n + j];
-            }
-            out << std::endl;
-        }
-        out << std::endl;
-        for(int i = 0; i < n; i++)
-            out << "  s[" << i << "] = " << s[i] << std::endl;
     }
     out << std::endl;
 }
 
-void trial_rand(TestContext &ctx, std::mt19937 &g, int n, int ka, int kb)
+void trial_rand(TestContext &ctx, std::mt19937 &g,
+                int n, int m, int k0, int cmax)
 {
-    int *a_pref = new int [n*n];
-    int *b_pref = new int [n*n];
-    int *s = new int [n];
-    inst_rand(g, n, ka, kb, a_pref, b_pref);
-    check_instance(n, a_pref, b_pref) || DIE("bad instance");
-    if(ctx.solve(n, a_pref, b_pref, s)) {
-        if(!check_soln(n, a_pref, b_pref, s)) {
-            ctx.fail() << "bad solution to instance " << ctx.count();
-            diagnostics(ctx.diagnostics(), n, a_pref, b_pref, s);
+    (n > 0 && m > 0 && k0 > 0 && k0 <= n/2) || DIE("bad parameters");
+    int *c = new int[n];
+    int *e = new int[2*m];
+    int *s = new int[n];
+    bool *u = new bool[n];
+    for(int i = 0; i < n; i++)
+        u[i] = false;
+    int k1 = 0;
+    while(k1 < k0) {
+        std::uniform_int_distribution<> d(0,n-1);   
+        int i = d(g);
+        if(!u[i]) {
+            u[i] = true;
+            k1++;
         }
     }
-    delete[] s;
-    delete[] b_pref;
-    delete[] a_pref;
-}
+    int m1 = 0;
+    while(m1 < m) {
+        std::uniform_int_distribution<> d(0,n-1);   
+        int i = d(g);
+        int j = d(g);
+        if(j < i) {
+            int t = j;
+            j = i;
+            i = t;
+        }
+        if(i < j && ((!u[i]) || (!u[j]))) {
+            e[2*m1]   = i;
+            e[2*m1+1] = j;
+            m1++;
+        }           
+    }
+    int optatmost = 0;
+    for(int i = 0; i < n; i++) {
+        std::uniform_int_distribution<> d(1,cmax);
+        c[i] = d(g);
+        if(!u[i])
+            optatmost += c[i];
+    }
 
-void trial_long(TestContext &ctx, std::mt19937 &g, int n, int choice)
-{
-    int *a_pref = new int [n*n];
-    int *b_pref = new int [n*n];
-    int *s = new int [n];
-    switch(choice) {
-    case 0:
-        inst_long1(n, a_pref, b_pref);
-        break;
-    case 1:
-        inst_long1(n, b_pref, a_pref);
-        break;
-    case 2:
-        inst_long2(n, a_pref, b_pref);
-        break;
-    case 3:
-        inst_long2(n, b_pref, a_pref);
-        break;
-    default:
-        DIE("unsupported choice");
-    }
-    check_instance(n, a_pref, b_pref) || DIE("bad instance");
-    if(ctx.solve(n, a_pref, b_pref, s)) {
-        if(!check_soln(n, a_pref, b_pref, s)) {
+    check_instance(n, m, e, c) || DIE("bad instance");
+    int k;
+    if(ctx.solve(n, m, e, c, k, s)) {
+        if(!check_soln(n, m, e, c, k, s, optatmost)) {
             ctx.fail() << "bad solution to instance " << ctx.count();
-            diagnostics(ctx.diagnostics(), n, a_pref, b_pref, s);
+            diagnostics(ctx.diagnostics(), n, m, e, c, k, s, optatmost);
         }
     }
+
+    delete[] u;
     delete[] s;
-    delete[] b_pref;
-    delete[] a_pref;
+    delete[] e;
+    delete[] c;
 }
 
 bool tests(bool do_boxed)
@@ -954,70 +888,58 @@ bool tests(bool do_boxed)
 
     track::start();
     bool good = true;
-    for(int n = 1; n <= 5; n++) {
-        for(int ka = 1; ka <= n; ka++) {                
-            for(int kb = 1; kb <= n; kb++) {
-                std::cerr << "test n = " << std::setw(2) << n
-                          << ", ka = " << std::setw(2) << ka
-                          << ", kb = " << std::setw(2) << kb
-                          << " ... ";
-                TestContext ctx;
-                ctx.start(do_boxed,
-                          (tick_t) 3000*TICKS_IN_MSEC);
-                int repeats = 100;
-                for(int r = 0; !ctx.bad() && r < repeats; r++)
-                    trial_rand(ctx, g, n, ka, kb);
-                ctx.end();
-                if(ctx.bad()) {
-                    std::cerr << "FAIL [" << ctx.fail().str() << "]";
-                    good = false;
-                } else {
-                    std::cerr << "OK   ["
-                              << std::setw(5)
-                              << ctx.timing_ms() << " ms]";
-                }
-                std::cerr << std::endl;
-                if(ctx.bad())
-                    std::cerr << ctx.diagnostics().str();
-            }
-        }
-    }
-    for(int n = 1; n <= 2048; n*=2) {
-        std::cerr << "scaling test n = " << std::setw(5) << n
+    for(int n = 2; n <= 30; n++) {
+        int m = 100*n;
+        int k0 = n/2;
+        int cmax = 5;
+        std::cerr << "test n = " << std::setw(3) << n
+                  << ", m = " << std::setw(4) << m
+                  << ", k0 = " << std::setw(3) << k0
                   << " ... ";
-        const int repeats = 4;
-        long timing[repeats];
-        bool testgood = true;
-        for(int r = 0; r < repeats; r++) {        
-            TestContext ctx;
-            ctx.start(do_boxed,
-                      (tick_t) 3000*TICKS_IN_MSEC);
-            if(!ctx.bad())
-                trial_long(ctx, g, n, r);
-            ctx.end();
-            if(ctx.bad()) {
-                std::cerr << "FAIL [" << ctx.fail().str() << "]";
-                good = false;
-                std::cerr << std::endl;
-                if(ctx.bad())
-                    std::cerr << ctx.diagnostics().str();        
-                testgood = false;
-                break;
-            } else {
-                timing[r] = ctx.timing_ms();
-            }
+        TestContext ctx;
+        ctx.start(do_boxed,
+                  (tick_t) 7000*TICKS_IN_MSEC);
+        int repeats = 1000;
+        for(int r = 0; !ctx.bad() && r < repeats; r++)
+            trial_rand(ctx, g, n, m, k0, cmax);
+        ctx.end();
+        if(ctx.bad()) {
+            std::cerr << "FAIL [" << ctx.fail().str() << "]";
+            good = false;
+        } else {
+            std::cerr << "OK   ["
+                      << std::setw(5)
+                      << ctx.timing_ms() << " ms]";
         }
-        if(testgood) {
+        std::cerr << std::endl;
+        if(ctx.bad())
+            std::cerr << ctx.diagnostics().str();
+    }
+    for(int n = 1 << 10; n <= 1 << 19; n*=2) {
+        int m = 100*n;
+        int k0 = n/2;
+        int cmax = 5;
+        std::cerr << "scaling test n = " << std::setw(7) << n
+                  << ", m = " << std::setw(9) << m
+                  << ", k0 = " << std::setw(7) << k0
+                  << " ... ";
+        TestContext ctx;
+        ctx.start(do_boxed,
+                  (tick_t) 7000*TICKS_IN_MSEC);
+        if(!ctx.bad())
+            trial_rand(ctx, g, n, m, k0, cmax);
+        ctx.end();
+        if(ctx.bad()) {
+            std::cerr << "FAIL [" << ctx.fail().str() << "]";
+            good = false;
+            if(ctx.bad())
+                std::cerr << ctx.diagnostics().str();        
+        } else {
             std::cerr << "OK   [";          
-            for(int r = 0; r < repeats; r++) {
-                std::cerr << std::setw(5) << timing[r] << " ms";
-                if(r == repeats-1)
-                    std::cerr << "]";
-                else
-                    std::cerr << ", ";              
-            }
-            std::cerr << std::endl;
+            std::cerr << std::setw(5) << ctx.timing_ms() << " ms";
+            std::cerr << "]";
         }
+        std::cerr << std::endl;
     }
     long ms, KiB;
     track::stop(ms, KiB);
@@ -1049,7 +971,7 @@ int main(int argc, char * const *argv)
             break;
         default:
             const char *ex =
-                "Stable matching";
+                "Vertex cover";
             std::cout
               << "Template for exercise '"<<ex<<"', CS-E3190 Autumn 2022\n"
               << "\n"
@@ -1079,7 +1001,7 @@ int main(int argc, char * const *argv)
     } else {
         /* Start processing in piped-solver mode. */
         TestContext ctx;
-        unsigned int ready_signal = 0xd8b9c04b;
+        unsigned int ready_signal = 0x0fe95617;
         ctx.send(&ready_signal, sizeof(unsigned int), "ready");
         ctx.guard();
         pipe_in(ctx);          

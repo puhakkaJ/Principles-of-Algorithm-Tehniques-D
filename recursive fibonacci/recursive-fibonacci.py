@@ -21,7 +21,7 @@ def recursive_power(base, n):
             pow1 = recursive_power(base, n/2)
             pow2 = recursive_power(base, n/2)
         else:
-            pow1 = recursive_power(base, math.ceil(n/2)) #3//2=1
+            pow1 = recursive_power(base, math.ceil(n/2)) 
             pow2 = recursive_power(base, (n-math.ceil(n/2)))
         return matrix_multiplication(pow1,pow2) 
 
